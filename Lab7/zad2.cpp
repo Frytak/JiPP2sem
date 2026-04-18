@@ -1,12 +1,10 @@
 #include <cstdlib>
 #include <memory>
 #include <print>
-#include <thread>
 #include <unistd.h>
 
 int *raw() {
-    int *x = (int*)std::malloc(sizeof(int));
-    *x = 42;
+    int *x = new int(42);
     return x;
 }
 
@@ -16,7 +14,7 @@ std::unique_ptr<int> smart() {
 }
 
 int main() {
-    int iters = 1000000;
+    int iters = 10000000;
 
     for (int i = 0; i < iters; i++) {
         smart();
@@ -30,4 +28,5 @@ int main() {
     }
 
     std::print("Raw done, leaks D:\n");
+    sleep(4);
 }
