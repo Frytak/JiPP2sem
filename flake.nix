@@ -35,6 +35,7 @@
                         packages = with pkgs; [
                             gcc
                             pkg-config
+                            typst
                             cmake
                         ];
                     };

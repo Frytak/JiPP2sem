@@ -1,49 +1,78 @@
-#include <exception>
-#include <fstream>
+#include "BinaryInspector.hpp"
 #include <iostream>
-#include <limits>
-#include <vector>
+#include <string>
 
-class InvalidArgs: public std::exception {
-private:
-    std::string msg;
-
-public:
-    InvalidArgs(const char *msg) : msg(msg) {};
-
-    const char* what() const noexcept override {
-        return this->msg.c_str();
-    }
-};
-
-#define ARG_COUNT 1
+void printUsage(const char* progName) {
+    std::cerr << "Uzycie: " << progName << " <plik_binarny> [--offset N --type u16|u32|u64]\n";
+}
 
 int main(int argc, char* argv[]) {
-    try {
-        if (argc != ARG_COUNT + 1) {
-            throw InvalidArgs("Niepoprawna ilość argumentów. Oczekiwano jeden argument - ścieżka do pliku binarnego.");
-        }
-
-        std::ifstream bin_file;
-        bin_file.open(argv[1], std::ios::binary);
-
-        // Get file size
-        bin_file.ignore(std::numeric_limits<std::streamsize>::max());
-        std::streamsize size = bin_file.gcount() - 1;
-        bin_file.clear();
-        bin_file.seekg(0, std::ios_base::beg);
-
-        std::vector<unsigned char> bin(std::istreambuf_iterator<char>(bin_file), {});
-
-        std::cout << std::hex;
-        for (int i = 0; i < size/8; i++) {
-            for (int j = i*8; j < i; j++) {
-                std::cout << bin[j] << " ";
-            }
-            std::cout << std::endl;
-        }
-        std::cout << std::endl;
-    } catch(InvalidArgs &err) {
-        std::cerr << err.what() << std::endl;
+    if (argc < 2) {
+        printUsage(argv[0]);
+        return 1;
     }
+
+    std::string filename = argv[1];
+    
+    bool hasOffset = false;
+    std::size_t offset = 0;
+    DataType typeToRead = DataType::U32;
+
+    for (int i = 2; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--offset" && i + 1 < argc) {
+            try {
+                offset = std::stoull(argv[++i]);
+                hasOffset = true;
+            } catch (const std::exception&) {
+                std::cerr << "Blad: Niepoprawna wartosc dla opcji --offset\n";
+                return 1;
+            }
+        } 
+        else if (arg == "--type" && i + 1 < argc) {
+            std::string t = argv[++i];
+            if (t == "u16") typeToRead = DataType::U16;
+            else if (t == "u32") typeToRead = DataType::U32;
+            else if (t == "u64") typeToRead = DataType::U64;
+            else {
+                std::cerr << "Blad: Nieznany typ '" << t << "'. Dozwolone: u16, u32, u64\n";
+                return 1;
+            }
+        } 
+        else {
+            std::cerr << "Blad: Nieznany lub niekompletny argument: " << arg << "\n";
+            printUsage(argv[0]);
+            return 1;
+        }
+    }
+
+    try {
+        BinaryInspector inspector(filename);
+        
+        inspector.printFileSize();
+        std::cout << "\n";
+        inspector.printHexAndAsciiDump(64);
+        std::cout << "\n";
+        inspector.printByteFrequencies();
+        std::cout << "\n";
+
+        if (hasOffset) {
+            inspector.printValueAt(offset, typeToRead);
+        }
+
+    } 
+    catch (const BinaryRangeException& e) {
+        std::cerr << "\n[WYJATEK LOGICZNY] " << e.what() << "\n";
+        return 1;
+    }
+    catch (const FileOpenException& e) {
+        std::cerr << "\n[WYJATEK I/O] " << e.what() << "\n";
+        return 1;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "\n[NIEOCZEKIWANY WYJATEK] " << e.what() << "\n";
+        return 1;
+    }
+
+    return 0;
 }
